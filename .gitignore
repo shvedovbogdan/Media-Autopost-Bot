@@ -1,0 +1,10 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+logs/*.log*
+channels/
+stats/*.json
+caption_history/*.json
+data/admins.json

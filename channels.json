@@ -1,0 +1,78 @@
+{
+  "hot_girls": {
+    "title": "HOT_GERLSbot",
+    "chat_id": "",
+    "enabled": true,
+    "paused": true,
+    "language": "en",
+    "interval_minutes": 30,
+    "last_sent_type": null,
+    "last_run": null,
+    "last_attempt": null,
+    "last_error": null,
+    "caption_pack": "default",
+    "caption_footer": "📢 Ads & partnerships: @moderation_ua",
+    "paths": {
+      "photos": "channels/hot_girls/photos",
+      "videos": "channels/hot_girls/videos",
+      "archive": "channels/hot_girls/archive"
+    }
+  },
+  "hot_puppy": {
+    "title": "Hot_puppybot / Hot_Puppy_official",
+    "chat_id": "-1004359012731",
+    "enabled": true,
+    "paused": true,
+    "language": "en",
+    "interval_minutes": 30,
+    "last_sent_type": null,
+    "last_run": null,
+    "last_attempt": null,
+    "last_error": null,
+    "caption_pack": "hot_puppy",
+    "caption_footer": "🐾 Daily content for you ❤️\n🔥 Drop a reaction if you want more!\n📢 Ads & partnerships: @moderation_ua",
+    "paths": {
+      "photos": "channels/hot_puppy/photos",
+      "videos": "channels/hot_puppy/videos",
+      "archive": "channels/hot_puppy/archive"
+    }
+  },
+  "hot_yaoi": {
+    "title": "Hot_Yaoi_bot",
+    "chat_id": "",
+    "enabled": true,
+    "paused": true,
+    "language": "en",
+    "interval_minutes": 30,
+    "last_sent_type": null,
+    "last_run": null,
+    "last_attempt": null,
+    "last_error": null,
+    "caption_pack": "default",
+    "caption_footer": "📢 Ads & partnerships: @moderation_ua",
+    "paths": {
+      "photos": "channels/hot_yaoi/photos",
+      "videos": "channels/hot_yaoi/videos",
+      "archive": "channels/hot_yaoi/archive"
+    }
+  },
+  "hotboys": {
+    "title": "Hotboys_media_bot / @HOT_BOYSES",
+    "chat_id": "@HOT_BOYSES",
+    "enabled": true,
+    "paused": true,
+    "language": "en",
+    "interval_minutes": 30,
+    "last_sent_type": null,
+    "last_run": null,
+    "last_attempt": null,
+    "last_error": null,
+    "caption_pack": "hotboys",
+    "caption_footer": "🐾 Daily content for you ❤️\n🔥 Drop a reaction if you want more!\n📢 Ads & partnerships: @moderation_ua",
+    "paths": {
+      "photos": "channels/hotboys/photos",
+      "videos": "channels/hotboys/videos",
+      "archive": "channels/hotboys/archive"
+    }
+  }
+}
