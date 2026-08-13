@@ -1,155 +1,93 @@
 # Media Autopost Bot
 
-Повна документація для встановлення, використання та майбутнього передавання покупцю міститься у файлі [`ІНСТРУКЦІЯ.md`](ІНСТРУКЦІЯ.md).
+Один Telegram-бот керує будь-якою кількістю каналів з окремими чергами фото й відео, розкладом, підписами, архівом і статистикою.
 
-Один Telegram-бот для автопостингу в чотири незалежні канали:
+Чиста збірка не містить доданих каналів, `chat_id`, `@username`, токенів або медіаконтенту. Покупець сам створює потрібні профілі через команду `/addchannel`.
 
-- `HOT_GERLSbot` → профіль `hot_girls`;
-- `Hot_puppybot` → профіль `hot_puppy`;
-- `Hot_Yaoi_bot` → профіль `hot_yaoi`;
-- `Hotboys_media_bot` → профіль `hotboys`.
+Повна документація для встановлення, використання та передавання покупцю міститься у файлі [`ІНСТРУКЦІЯ.md`](ІНСТРУКЦІЯ.md).
 
-Кожен профіль має власний `chat_id`, чергу фото/відео, архів, інтервал, мову, футер, набір підписів, статистику, паузу та історію публікацій.
+## Перший запуск на Windows
 
-## Що вже перенесено
+Потрібен 64-бітний Python 3.10, 3.11 або 3.12. Рекомендовано Python 3.12.
 
-- `Hot_puppybot`: канал `-1004359012731`, інтервал 30 хв, англійська мова й оригінальний набір підписів `hot_puppy`.
-- `Hotboys_media_bot`: канал `@HOT_BOYSES`, інтервал 30 хв, англійська мова й оригінальний набір підписів `hotboys`.
-- Для `HOT_GERLSbot` і `Hot_Yaoi_bot` створені профілі, але `chat_id` порожній до перенесення їхніх точних налаштувань.
+1. Розпакуйте комплект у `D:\Bots`, щоб вийшло `D:\Bots\Media_Autopost_Bot` і `D:\Bots\_manager`.
+2. Запустіть `start.bat`.
+3. Під час першого запуску вставте `BOT_TOKEN` від `@BotFather` та свій цифровий `OWNER_ID`.
+4. Дочекайтеся повідомлення `BOT READY / БОТ ЗАПУЩЕНИЙ` і напишіть боту `/start`.
 
-Усі чотири профілі спочатку стоять на паузі. Це захищає від випадкових або подвійних постів під час переходу.
+Скрипт сам знайде сумісний Python, перевірить або створить `venv`, встановить залежності та збереже введені дані в локальному `.env`. Під час наступних запусків повторно вводити їх не потрібно.
 
-## В архіві навмисно немає контенту
+Якщо зі старої копії залишився пошкоджений або перенесений з іншого ПК `venv`, `start.bat` видалить лише цю службову папку та створить її заново. `.env`, налаштування каналів і медіаконтент при цьому не змінюються.
 
-Папка `channels/` не входить до ZIP. Бот сам створить порожні папки при першому запуску:
+Для повної перевірки токена, доступу до папок і прав у доданих каналах запустіть `diagnose.bat`. Перевірка нічого не публікує.
+
+Для автозапуску на сервері використовуйте папку `_manager`: `setup_all_bots.bat`, `start_all_bots.bat`, `status_bots.bat`, `stop_all_bots.bat`. Вікна менеджера не закриваються після виконання.
+
+## Додавання першого каналу
+
+Спочатку додайте керуючого бота адміністратором цільового каналу з правом публікації. Потім від імені власника виконайте:
 
 ```text
-channels/
-├── hot_girls/photos, videos, archive
-├── hot_puppy/photos, videos, archive
-├── hot_yaoi/photos, videos, archive
-└── hotboys/photos, videos, archive
+/addchannel example_channel -1001234567890 Назва каналу
 ```
 
-Також у збірці немає старих `.env`, токенів, `venv`, логів, статистики й історії публікацій.
+Для публічного каналу замість цифрового `chat_id` можна вказати `@username`:
 
-## Перший запуск на Windows Server
-
-Потрібен Python 3.12.
-
-1. Розпакуй проєкт, наприклад у `D:\Bots\Media_Autopost_Bot`.
-2. Запусти `start.bat`. Він створить `.venv`, встановить залежності та створить `.env`.
-3. Відкрий `.env` і заповни:
-
-```env
-BOT_TOKEN=токен_одного_керуючого_бота
-OWNER_ID=твій_цифровий_Telegram_ID
+```text
+/addchannel public_example @public_channel Назва каналу
 ```
 
-4. Додай цього одного бота адміністратором усіх каналів із правом публікації.
-5. Знову запусти `start.bat` та напиши боту `/start`.
+`example_channel` і `public_example` — лише умовні ключі. Покупець сам обирає ключ та назву кожного профілю. Кількість каналів не задана наперед: нові додаються тією самою командою `/addchannel`.
 
-Можна використати токен одного зі старих медіаботів або створити нового через `@BotFather`. Інші старі боти треба зупинити тільки після перевірки нового, інакше вони можуть робити дублікати.
+Новий канал створюється на паузі. Додайте медіа, перевірте ручну публікацію і тільки потім увімкніть розклад:
 
-## Перенесення медіа без видалення оригіналів
+```text
+/upload example_channel
+/sendnow example_channel
+/resume example_channel
+```
 
-`import_media.ps1` копіює контент зі старих папок. Передавай шлях саме до папки профілю, всередині якої лежать `photos`, `video`/`videos` та `archive`.
+## Медіапапки
 
-Приклад для двох отриманих ботів:
+Після додавання профілю бот автоматично створює:
+
+```text
+channels/<key>/photos
+channels/<key>/videos
+channels/<key>/archive/photos
+channels/<key>/archive/videos
+```
+
+Порожня коренева папка `channels/` з поясненням входить до продажного ZIP. Реальний медіаконтент не входить. Після `/addchannel` файли можна додавати вручну в `photos` і `videos` або завантажувати через Telegram.
+
+## Перенесення старого контенту
+
+`import_media.ps1` копіює файли в один указаний профіль і не видаляє оригінали:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\import_media.ps1" `
-  -HotPuppySource "D:\Bots\Hot_puppybot\channels\hot_Puppy_official" `
-  -HotboysSource "D:\Bots\Hotboys_media_bot\channels\HOT_BOYSES"
+  -Source "D:\OldBot\channels\source_profile" `
+  -TargetKey "example_channel"
 ```
 
-Коли будуть відомі папки двох інших ботів:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\import_media.ps1" `
-  -HotGirlsSource "D:\Bots\HOT_GERLSbot\channels\НАЗВА_ПРОФІЛЮ" `
-  -HotYaoiSource "D:\Bots\Hot_Yaoi_bot\channels\НАЗВА_ПРОФІЛЮ"
-```
-
-Оригінальні файли скрипт не видаляє.
-
-## Налаштування двох каналів без chat_id
-
-У Telegram-боті від імені власника:
-
-```text
-/setchat hot_girls -1001234567890
-/setchat hot_yaoi -1001234567890
-```
-
-Для публічного каналу можна вказати `@username` замість цифрового ID.
-
-## Перевірка перед увімкненням
-
-```text
-/status all
-/sendnow hot_puppy
-/sendnow hotboys
-```
-
-Після успішних тестових публікацій:
-
-```text
-/resume all
-```
+Для кожного наступного профілю запустіть команду ще раз із його ключем.
 
 ## Основні команди
 
 ```text
-/channels                     — меню чотирьох каналів
+/channels                     — список усіх доданих каналів
+/addchannel key chat_id Назва — додати новий канал
+/delchannel key               — прибрати канал із конфігурації
 /status [key|all]             — стан і кількість медіа
 /sendnow [key|all]            — опублікувати зараз
 /pause [key|all]              — поставити на паузу
-/resume [key|all]             — продовжити
+/resume [key|all]             — продовжити автопостинг
 /interval key minutes         — інтервал 1–10080 хв
 /language key ua|ru|en        — мова підписів
 /upload [key]                 — додавання медіа через Telegram
 /upload_stop                  — завершити завантаження
-/stats [key]                  — статистика за день і 7 днів
+/stats [key]                  — статистика
 /archive [key]                — кількість файлів в архіві
 ```
 
-Команди власника:
-
-```text
-/setchat key @channel|-100... — змінити канал
-/pack key default|hot_puppy|hotboys
-/footer key текст|off
-/addchannel key chat_id Назва
-/delchannel key               — видаляє конфіг, але не контент
-/addadmin user_id
-/removeadmin user_id
-```
-
-## Автозапуск через Планувальник завдань
-
-Запусти PowerShell від адміністратора у папці проєкту:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\install_task.ps1"
-```
-
-Буде створене завдання `\TelegramBots\TG_Media_Autopost_Bot`, яке запускає `server_start.bat` від `SYSTEM`. Логи зберігаються у `logs\bot.log` та `logs\launcher.log`.
-
-## Структура коду
-
-```text
-start.bat
-bot.py
-config.py
-database.py
-handlers/
-services/
-keyboards/
-utils/
-app/
-.env
-requirements.txt
-```
-
-Секретний `.env` не завантажуй у GitHub і не надсилай разом із проєктом.
+Секретний `.env` не завантажуйте у GitHub і не передавайте разом із продажною збіркою.

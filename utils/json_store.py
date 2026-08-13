@@ -14,7 +14,7 @@ def read_json(path: Path, default: Any) -> Any:
     if not path.exists():
         return deepcopy(default)
     try:
-        with path.open("r", encoding="utf-8") as file:
+        with path.open("r", encoding="utf-8-sig") as file:
             return json.load(file)
     except (OSError, json.JSONDecodeError):
         return deepcopy(default)
@@ -29,4 +29,3 @@ def write_json(path: Path, data: Any) -> None:
             json.dump(data, file, ensure_ascii=False, indent=2)
             file.write("\n")
         tmp_path.replace(path)
-

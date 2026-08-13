@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
-from config import DEFAULT_CHANNEL_KEY, OWNER_ID, PHOTO_EXTENSIONS, VIDEO_EXTENSIONS
+from config import OWNER_ID, PHOTO_EXTENSIONS, VIDEO_EXTENSIONS
 from database import JsonDatabase
 from keyboards.admin import channel_controls, channels_keyboard
 from services.captions import load_caption_pack
@@ -25,7 +25,7 @@ from utils.security import admin_only_callback, admin_only_message, owner_only_m
 router = Router()
 db = JsonDatabase()
 upload_sessions: dict[int, str] = {}
-active_channels: defaultdict[int, str] = defaultdict(lambda: DEFAULT_CHANNEL_KEY)
+active_channels: defaultdict[int, str] = defaultdict(str)
 CHANNEL_KEY_RE = re.compile(r"^[a-zA-Z0-9_-]{1,32}$")
 
 
@@ -79,6 +79,14 @@ def get_active_channel(user_id: int) -> tuple[str, dict | None]:
     return key, channels.get(key)
 
 
+def command_target(message: Message, argument: str | None = None) -> str:
+    """Use an explicit key or safely fall back to the first available channel."""
+    if argument and argument.strip():
+        return argument.strip()
+    key, _ = get_active_channel(message.from_user.id)
+    return key
+
+
 async def show_channel(message: Message, key: str) -> None:
     channel = db.get_channel(key)
     if not channel:
@@ -93,7 +101,7 @@ async def cmd_start(message: Message) -> None:
     key, channel = get_active_channel(message.from_user.id)
     text = (
         "<b>🎬 Media Autopost Bot</b>\n\n"
-        "Один бот керує чотирма незалежними каналами, чергами медіа, підписами та розкладом.\n"
+        "Один бот керує кількома незалежними каналами, чергами медіа, підписами та розкладом.\n"
         "Обери канал через /channels або відкрий /help."
     )
     await message.answer(text)
@@ -122,7 +130,8 @@ async def cmd_help(message: Message) -> None:
         "/archive [key] — кількість в архіві\n\n"
         "<b>Тільки власник:</b>\n"
         "/setchat key @channel|-100...\n"
-        "/pack key default|hot_puppy|hotboys\n"
+        "/title key Нова назва\n"
+        "/pack key default|style_1|style_2\n"
         "/footer key текст | off\n"
         "/addchannel key chat_id Назва\n"
         "/delchannel key — видаляє конфіг, але не медіа\n"
@@ -135,7 +144,18 @@ async def cmd_help(message: Message) -> None:
 @admin_only_message
 async def cmd_channels(message: Message) -> None:
     channels = db.get_channels()
-    await message.answer("<b>📢 Канали</b>\n\n✅ активний · ⏸ пауза · ⚙️ потрібен chat_id", reply_markup=channels_keyboard(channels))
+    if not channels:
+        await message.answer(
+            "<b>📢 Канали</b>\n\nКаналів ще немає. Власник може додати перший канал командою:\n"
+            "<code>/addchannel key @channel Назва каналу</code>",
+            reply_markup=channels_keyboard(channels),
+        )
+        return
+    summaries = "\n\n".join(channel_summary(key, channel) for key, channel in channels.items())
+    await message.answer(
+        f"<b>📢 Канали</b>\n\n{summaries}",
+        reply_markup=channels_keyboard(channels),
+    )
 
 
 @router.message(Command("setchannel"))
@@ -143,7 +163,7 @@ async def cmd_channels(message: Message) -> None:
 async def cmd_setchannel(message: Message) -> None:
     parts = message.text.split(maxsplit=1)
     if len(parts) != 2 or parts[1].strip() not in db.get_channels():
-        await message.answer("Приклад: <code>/setchannel hot_puppy</code>")
+        await message.answer("Приклад: <code>/setchannel example_channel</code>")
         return
     key = parts[1].strip()
     active_channels[message.from_user.id] = key
@@ -154,7 +174,7 @@ async def cmd_setchannel(message: Message) -> None:
 @admin_only_message
 async def cmd_status(message: Message) -> None:
     parts = message.text.split(maxsplit=1)
-    target = parts[1].strip() if len(parts) == 2 else active_channels[message.from_user.id]
+    target = command_target(message, parts[1] if len(parts) == 2 else None)
     channels = db.get_channels()
     if target == "all":
         if not channels:
@@ -169,7 +189,7 @@ async def cmd_status(message: Message) -> None:
 @admin_only_message
 async def cmd_sendnow(message: Message, bot: Bot) -> None:
     parts = message.text.split(maxsplit=1)
-    target = parts[1].strip() if len(parts) == 2 else active_channels[message.from_user.id]
+    target = command_target(message, parts[1] if len(parts) == 2 else None)
     channels = db.get_channels()
     keys = list(channels) if target == "all" else [target]
     results = []
@@ -185,7 +205,7 @@ async def cmd_sendnow(message: Message, bot: Bot) -> None:
 
 async def set_pause(message: Message, paused: bool) -> None:
     parts = message.text.split(maxsplit=1)
-    target = parts[1].strip() if len(parts) == 2 else active_channels[message.from_user.id]
+    target = command_target(message, parts[1] if len(parts) == 2 else None)
     channels = db.get_channels()
     if target == "all":
         for channel in channels.values():
@@ -214,7 +234,7 @@ async def cmd_resume(message: Message) -> None:
 async def cmd_interval(message: Message) -> None:
     parts = message.text.split(maxsplit=2)
     if len(parts) != 3 or not parts[2].isdigit() or not 1 <= int(parts[2]) <= 10080:
-        await message.answer("Приклад: <code>/interval hot_puppy 30</code> (1–10080 хв)")
+        await message.answer("Приклад: <code>/interval example_channel 30</code> (1–10080 хв)")
         return
     ok = db.update_channel(parts[1], interval_minutes=int(parts[2]), last_attempt=None)
     await message.answer(f"✅ Інтервал: {parts[2]} хв." if ok else "Канал не знайдено.")
@@ -225,7 +245,7 @@ async def cmd_interval(message: Message) -> None:
 async def cmd_language(message: Message) -> None:
     parts = message.text.split(maxsplit=2)
     if len(parts) != 3 or parts[2].lower() not in {"ua", "ru", "en"}:
-        await message.answer("Приклад: <code>/language hot_puppy en</code>")
+        await message.answer("Приклад: <code>/language example_channel en</code>")
         return
     ok = db.update_channel(parts[1], language=parts[2].lower())
     await message.answer("✅ Мову змінено." if ok else "Канал не знайдено.")
@@ -236,7 +256,7 @@ async def cmd_language(message: Message) -> None:
 async def cmd_setchat(message: Message) -> None:
     parts = message.text.split(maxsplit=2)
     if len(parts) != 3:
-        await message.answer("Приклад: <code>/setchat hot_yaoi -1001234567890</code>")
+        await message.answer("Приклад: <code>/setchat example_channel -1001234567890</code>")
         return
     chat_id = parts[2].strip()
     if not (chat_id.startswith("@") or (chat_id.startswith("-") and chat_id[1:].isdigit())):
@@ -246,12 +266,27 @@ async def cmd_setchat(message: Message) -> None:
     await message.answer("✅ chat_id збережено." if ok else "Канал не знайдено.")
 
 
+@router.message(Command("title"))
+@owner_only_message
+async def cmd_title(message: Message) -> None:
+    parts = message.text.split(maxsplit=2)
+    if len(parts) != 3 or not parts[2].strip():
+        await message.answer("Приклад: <code>/title example_channel Назва каналу</code>")
+        return
+    title = parts[2].strip()
+    if len(title) > 100:
+        await message.answer("Назва має бути не довшою за 100 символів.")
+        return
+    ok = db.update_channel(parts[1], title=title)
+    await message.answer("✅ Назву профілю змінено." if ok else "Канал не знайдено.")
+
+
 @router.message(Command("pack"))
 @owner_only_message
 async def cmd_pack(message: Message) -> None:
     parts = message.text.split(maxsplit=2)
-    if len(parts) != 3 or parts[2] not in {"default", "hot_puppy", "hotboys"}:
-        await message.answer("Доступні набори: <code>default</code>, <code>hot_puppy</code>, <code>hotboys</code>.")
+    if len(parts) != 3 or parts[2] not in {"default", "style_1", "style_2"}:
+        await message.answer("Доступні набори: <code>default</code>, <code>style_1</code>, <code>style_2</code>.")
         return
     load_caption_pack(parts[2])
     ok = db.update_channel(parts[1], caption_pack=parts[2])
@@ -263,7 +298,7 @@ async def cmd_pack(message: Message) -> None:
 async def cmd_footer(message: Message) -> None:
     parts = message.text.split(maxsplit=2)
     if len(parts) < 3:
-        await message.answer("Приклад: <code>/footer hot_puppy Ads: @moderation_ua</code> або <code>/footer hot_puppy off</code>")
+        await message.answer("Приклад: <code>/footer example_channel Текст футера</code> або <code>/footer example_channel off</code>")
         return
     footer = "" if parts[2].strip().lower() == "off" else parts[2].strip()
     if len(footer) > 350:
@@ -281,6 +316,9 @@ async def cmd_addchannel(message: Message) -> None:
         await message.answer("Приклад: <code>/addchannel new_channel @channel Назва каналу</code>\nКлюч: латиниця, цифри, _ або -.")
         return
     _, key, chat_id, title = parts
+    if key in db.get_channels():
+        await message.answer("Канал із таким ключем уже існує. Вибери інший ключ або скористайся /setchat і /title.")
+        return
     if not (chat_id.startswith("@") or (chat_id.startswith("-") and chat_id[1:].isdigit())):
         await message.answer("chat_id має бути @username або числом на кшталт -1001234567890.")
         return
@@ -288,7 +326,7 @@ async def cmd_addchannel(message: Message) -> None:
         "title": title,
         "chat_id": chat_id,
         "enabled": True,
-        "paused": False,
+        "paused": True,
         "language": "en",
         "interval_minutes": 180,
         "last_sent_type": None,
@@ -301,7 +339,10 @@ async def cmd_addchannel(message: Message) -> None:
     }
     ensure_channel_dirs(channel)
     db.upsert_channel(key, channel)
-    await message.answer(f"✅ Канал додано: <code>{h(key)}</code>")
+    await message.answer(
+        f"✅ Канал додано: <code>{h(key)}</code>\n"
+        "⏸ Автопостинг на паузі. Додай медіа, перевір /sendnow і потім увімкни /resume."
+    )
 
 
 @router.message(Command("delchannel"))
@@ -345,7 +386,7 @@ async def cmd_removeadmin(message: Message) -> None:
 @admin_only_message
 async def cmd_upload(message: Message) -> None:
     parts = message.text.split(maxsplit=1)
-    key = parts[1].strip() if len(parts) == 2 else active_channels[message.from_user.id]
+    key = command_target(message, parts[1] if len(parts) == 2 else None)
     if key not in db.get_channels():
         await message.answer("Канал не знайдено.")
         return
@@ -397,7 +438,10 @@ async def handle_media_upload(message: Message, bot: Bot) -> None:
 @admin_only_message
 async def cmd_stats(message: Message) -> None:
     parts = message.text.split(maxsplit=1)
-    key = parts[1].strip() if len(parts) == 2 else active_channels[message.from_user.id]
+    key = command_target(message, parts[1] if len(parts) == 2 else None)
+    if not db.get_channel(key):
+        await message.answer("Канал не знайдено.")
+        return
     stats = db.get_stats(key)
     now = datetime.now(timezone.utc)
     today = {"photo": 0, "video": 0}
@@ -421,7 +465,7 @@ async def cmd_stats(message: Message) -> None:
 @admin_only_message
 async def cmd_archive(message: Message) -> None:
     parts = message.text.split(maxsplit=1)
-    key = parts[1].strip() if len(parts) == 2 else active_channels[message.from_user.id]
+    key = command_target(message, parts[1] if len(parts) == 2 else None)
     channel = db.get_channel(key)
     if not channel:
         await message.answer("Канал не знайдено.")

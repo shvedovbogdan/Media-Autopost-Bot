@@ -4,7 +4,8 @@ venv/
 __pycache__/
 *.py[cod]
 logs/*.log*
-channels/
+channels/*
+!channels/README.txt
 stats/*.json
 caption_history/*.json
 data/admins.json

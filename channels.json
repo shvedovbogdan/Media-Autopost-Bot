@@ -1,78 +1,40 @@
 {
-  "hot_girls": {
-    "title": "HOT_GERLSbot",
-    "chat_id": "",
-    "enabled": true,
-    "paused": true,
-    "language": "en",
-    "interval_minutes": 30,
-    "last_sent_type": null,
-    "last_run": null,
-    "last_attempt": null,
-    "last_error": null,
-    "caption_pack": "default",
-    "caption_footer": "📢 Ads & partnerships: @moderation_ua",
-    "paths": {
-      "photos": "channels/hot_girls/photos",
-      "videos": "channels/hot_girls/videos",
-      "archive": "channels/hot_girls/archive"
-    }
-  },
-  "hot_puppy": {
-    "title": "Hot_puppybot / Hot_Puppy_official",
+  "hot_Puppy_official": {
+    "title": "Hot_Puppy_official",
     "chat_id": "-1004359012731",
     "enabled": true,
     "paused": true,
     "language": "en",
-    "interval_minutes": 30,
+    "interval_minutes": 180,
     "last_sent_type": null,
     "last_run": null,
-    "last_attempt": null,
-    "last_error": null,
-    "caption_pack": "hot_puppy",
-    "caption_footer": "🐾 Daily content for you ❤️\n🔥 Drop a reaction if you want more!\n📢 Ads & partnerships: @moderation_ua",
+    "last_attempt": "2026-08-12T11:38:21.334929+00:00",
+    "last_error": "Telegram: TelegramBadRequest: Telegram server says - Bad Request: chat not found",
+    "caption_pack": "default",
+    "caption_footer": "",
     "paths": {
-      "photos": "channels/hot_puppy/photos",
-      "videos": "channels/hot_puppy/videos",
-      "archive": "channels/hot_puppy/archive"
+      "photos": "channels/hot_Puppy_official/photos",
+      "videos": "channels/hot_Puppy_official/videos",
+      "archive": "channels/hot_Puppy_official/archive"
     }
   },
-  "hot_yaoi": {
-    "title": "Hot_Yaoi_bot",
-    "chat_id": "",
+  "HOTBOYS_YAOI_NS": {
+    "title": "HOTBOYS + YAOI NS",
+    "chat_id": "@HOT_BOYSES",
     "enabled": true,
     "paused": true,
     "language": "en",
-    "interval_minutes": 30,
+    "interval_minutes": 180,
     "last_sent_type": null,
     "last_run": null,
     "last_attempt": null,
     "last_error": null,
     "caption_pack": "default",
-    "caption_footer": "📢 Ads & partnerships: @moderation_ua",
+    "caption_footer": "",
     "paths": {
-      "photos": "channels/hot_yaoi/photos",
-      "videos": "channels/hot_yaoi/videos",
-      "archive": "channels/hot_yaoi/archive"
-    }
-  },
-  "hotboys": {
-    "title": "Hotboys_media_bot / @HOT_BOYSES",
-    "chat_id": "@HOT_BOYSES",
-    "enabled": true,
-    "paused": true,
-    "language": "en",
-    "interval_minutes": 30,
-    "last_sent_type": null,
-    "last_run": null,
-    "last_attempt": null,
-    "last_error": null,
-    "caption_pack": "hotboys",
-    "caption_footer": "🐾 Daily content for you ❤️\n🔥 Drop a reaction if you want more!\n📢 Ads & partnerships: @moderation_ua",
-    "paths": {
-      "photos": "channels/hotboys/photos",
-      "videos": "channels/hotboys/videos",
-      "archive": "channels/hotboys/archive"
+      "photos": "channels/HOTBOYS_YAOI_NS/photos",
+      "videos": "channels/HOTBOYS_YAOI_NS/videos",
+      "archive": "channels/HOTBOYS_YAOI_NS/archive"
     }
   }
 }

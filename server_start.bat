@@ -1,25 +1,28 @@
 @echo off
-chcp 65001 >nul
-setlocal
+setlocal EnableExtensions
 cd /d "%~dp0"
-title Media Autopost Bot Server
 
 if not exist "logs" mkdir "logs"
-
-call setup.bat >> "logs\launcher.log" 2>&1
-if errorlevel 1 (
-    echo Setup failed. Check logs\launcher.log
-    timeout /t 30 /nobreak >nul
-    exit /b 1
-)
 
 set PYTHONUTF8=1
 set PYTHONUNBUFFERED=1
 
-:RUN
-echo [%date% %time%] Starting bot >> "logs\launcher.log"
-".venv\Scripts\python.exe" -u bot.py
-set BOT_EXIT_CODE=%errorlevel%
-echo [%date% %time%] Bot stopped with code %BOT_EXIT_CODE%. Restart in 10 seconds. >> "logs\launcher.log"
+:START
+echo ==================================================
+echo [%date% %time%] Starting Media_Autopost_Bot
+echo ================================================== >> "logs\bot.log"
+echo [%date% %time%] Starting Media_Autopost_Bot >> "logs\bot.log"
+
+if not exist "venv\Scripts\python.exe" (
+    echo ERROR: venv not found. Run start.bat first.
+    echo [%date% %time%] ERROR: venv not found. Run start.bat first. >> "logs\bot.log"
+    timeout /t 30 /nobreak >nul
+    goto START
+)
+
+"venv\Scripts\python.exe" -u "bot.py" >> "logs\bot.log" 2>&1
+
+echo [%date% %time%] Bot stopped. Restarting in 10 seconds... >> "logs\bot.log"
+echo Bot stopped. Restarting in 10 seconds...
 timeout /t 10 /nobreak >nul
-goto RUN
+goto START

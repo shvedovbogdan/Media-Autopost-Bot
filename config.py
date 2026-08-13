@@ -37,7 +37,6 @@ def env_int(name: str, default: int) -> int:
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 OWNER_ID = env_int("OWNER_ID", 0)
-DEFAULT_CHANNEL_KEY = os.getenv("DEFAULT_CHANNEL_KEY", "hot_puppy").strip()
 BOT_LANGUAGE = os.getenv("BOT_LANGUAGE", "ua").strip().lower()
 TIMEZONE = os.getenv("TIMEZONE", "Europe/Kyiv").strip()
 AUTO_START = env_bool("AUTO_START", True)

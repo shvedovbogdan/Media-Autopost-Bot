@@ -31,6 +31,8 @@ class JsonDatabase:
     # Admins / Адміністратори
     def get_admins(self) -> set[int]:
         data = read_json(ADMINS_PATH, {"admins": []})
+        if not isinstance(data, dict):
+            data = {"admins": []}
         saved = {int(value) for value in data.get("admins", []) if str(value).isdigit()}
         return ENV_ADMIN_IDS | saved
 
@@ -130,4 +132,3 @@ class JsonDatabase:
             history = self.get_caption_history(key)
             history.append({"text": caption.strip(), "timestamp": now_iso()})
             write_json(self.history_path(key), history[-250:])
-
