@@ -20,6 +20,7 @@ from services.storage import (
     project_path,
     unique_path,
 )
+from services.telegram_checks import check_channel_for_posting, is_valid_chat_ref
 from utils.security import admin_only_callback, admin_only_message, owner_only_message
 
 router = Router()
@@ -36,6 +37,37 @@ def h(value: object) -> str:
 def channel_paths(key: str) -> dict[str, str]:
     base = f"channels/{key}"
     return {"photos": f"{base}/photos", "videos": f"{base}/videos", "archive": f"{base}/archive"}
+
+
+def addchannel_help_text() -> str:
+    return (
+        "<b>Як додати канал</b>\n\n"
+        "Формат:\n"
+        "<code>/addchannel key chat_id Назва для меню</code>\n\n"
+        "<b>Що означає кожне поле:</b>\n"
+        "1. <code>key</code> — внутрішній ключ профілю. Це також назва папки з контентом.\n"
+        "   Це не @username каналу і не назва каналу в Telegram.\n"
+        "2. <code>chat_id</code> — куди бот буде публікувати. Для публічного каналу: <code>@channel</code>. "
+        "Для приватного: ID виду <code>-1001234567890</code>.\n"
+        "3. <code>Назва для меню</code> — як канал буде показуватись у меню бота.\n\n"
+        "<b>Приклад:</b>\n"
+        "<code>/addchannel HOTBOYS_YAOI_NS @HOT_BOYSES HOTBOYS + YAOI NS</code>\n\n"
+        "Після успішного додавання бот створить папки:\n"
+        "<code>channels/HOTBOYS_YAOI_NS/photos</code>\n"
+        "<code>channels/HOTBOYS_YAOI_NS/videos</code>\n"
+        "<code>channels/HOTBOYS_YAOI_NS/archive</code>\n\n"
+        "Правила для <code>key</code>: тільки латиниця, цифри, <code>_</code> або <code>-</code>, без пробілів."
+    )
+
+
+def key_help_line() -> str:
+    return (
+        "<b>Що таке key?</b>\n"
+        "<code>key</code> — це коротка внутрішня назва профілю і папки, наприклад "
+        "<code>HOTBOYS_YAOI_NS</code>. Він створюється командою <code>/addchannel</code> "
+        "і потім використовується в командах <code>/upload</code>, <code>/sendnow</code>, "
+        "<code>/pause</code>, <code>/resume</code>, <code>/checkchat</code>."
+    )
 
 
 def queue_counts(channel: dict) -> tuple[int, int]:
@@ -59,8 +91,8 @@ def channel_summary(key: str, channel: dict) -> str:
     error_line = f"\nОстання помилка: <code>{h(str(last_error)[:300])}</code>" if last_error else ""
     return (
         f"<b>{h(channel.get('title', key))}</b>\n"
-        f"Ключ: <code>{h(key)}</code>\n"
-        f"Канал: <code>{h(channel.get('chat_id') or 'не налаштовано')}</code>\n"
+        f"Ключ/папка: <code>{h(key)}</code>\n"
+        f"Telegram-канал: <code>{h(channel.get('chat_id') or 'не налаштовано')}</code>\n"
         f"Статус: <b>{state}</b>\n"
         f"Інтервал: <b>{int(channel.get('interval_minutes', 60))} хв</b>\n"
         f"Мова: <b>{h(channel.get('language', 'en'))}</b>\n"
@@ -108,7 +140,7 @@ async def cmd_start(message: Message) -> None:
     if channel:
         await show_channel(message, key)
     else:
-        await message.answer("Каналів немає. Власник може додати: /addchannel key chat_id Назва")
+        await message.answer("Каналів ще немає.\n\n" + addchannel_help_text())
 
 
 @router.message(Command("help"))
@@ -116,9 +148,17 @@ async def cmd_start(message: Message) -> None:
 async def cmd_help(message: Message) -> None:
     await message.answer(
         "<b>📖 Команди Media Autopost Bot</b>\n\n"
+        f"{key_help_line()}\n\n"
+        "<b>Три головні поля:</b>\n"
+        "<code>key</code> — назва профілю і папки з контентом.\n"
+        "<code>chat_id</code> — @username або -100... цільового Telegram-каналу.\n"
+        "<code>Назва</code> — текст, який видно в меню бота.\n\n"
+        "<b>Створення каналу:</b>\n"
+        "<code>/addchannel HOTBOYS_YAOI_NS @HOT_BOYSES HOTBOYS + YAOI NS</code>\n\n"
         "/channels — усі канали\n"
         "/setchannel key — обрати активний канал\n"
         "/status [key|all] — стан і черги\n"
+        "/checkchat [key] — перевірити доступ бота до каналу\n"
         "/sendnow [key|all] — опублікувати зараз\n"
         "/pause [key|all] — призупинити\n"
         "/resume [key|all] — продовжити\n"
@@ -133,7 +173,7 @@ async def cmd_help(message: Message) -> None:
         "/title key Нова назва\n"
         "/pack key default|style_1|style_2\n"
         "/footer key текст | off\n"
-        "/addchannel key chat_id Назва\n"
+        "/addchannel key chat_id Назва для меню\n"
         "/delchannel key — видаляє конфіг, але не медіа\n"
         "/addadmin user_id\n"
         "/removeadmin user_id"
@@ -146,8 +186,7 @@ async def cmd_channels(message: Message) -> None:
     channels = db.get_channels()
     if not channels:
         await message.answer(
-            "<b>📢 Канали</b>\n\nКаналів ще немає. Власник може додати перший канал командою:\n"
-            "<code>/addchannel key @channel Назва каналу</code>",
+            "<b>📢 Канали</b>\n\nКаналів ще немає.\n\n" + addchannel_help_text(),
             reply_markup=channels_keyboard(channels),
         )
         return
@@ -163,7 +202,10 @@ async def cmd_channels(message: Message) -> None:
 async def cmd_setchannel(message: Message) -> None:
     parts = message.text.split(maxsplit=1)
     if len(parts) != 2 or parts[1].strip() not in db.get_channels():
-        await message.answer("Приклад: <code>/setchannel example_channel</code>")
+        await message.answer(
+            "Приклад: <code>/setchannel HOTBOYS_YAOI_NS</code>\n"
+            "Тут <code>HOTBOYS_YAOI_NS</code> — це <code>key</code>, створений командою <code>/addchannel</code>."
+        )
         return
     key = parts[1].strip()
     active_channels[message.from_user.id] = key
@@ -183,6 +225,31 @@ async def cmd_status(message: Message) -> None:
         await message.answer("\n\n".join(channel_summary(key, channel) for key, channel in channels.items()))
         return
     await show_channel(message, target)
+
+
+@router.message(Command("checkchat"))
+@admin_only_message
+async def cmd_checkchat(message: Message, bot: Bot) -> None:
+    parts = message.text.split(maxsplit=1)
+    key = command_target(message, parts[1] if len(parts) == 2 else None)
+    channel = db.get_channel(key)
+    if not channel:
+        await message.answer("Канал не знайдено.")
+        return
+    chat_id = channel.get("chat_id")
+    if not chat_id:
+        await message.answer(
+            "У цього профілю ще не вказано <code>chat_id</code>.\n"
+            "Приклад: <code>/setchat HOTBOYS_YAOI_NS @HOT_BOYSES</code>\n"
+            "<code>key</code> лишається назвою папки, а <code>@HOT_BOYSES</code> — це Telegram-канал."
+        )
+        return
+    result = await check_channel_for_posting(bot, chat_id)
+    if result.ok and result.normalized_chat_id and result.normalized_chat_id != str(chat_id):
+        db.update_channel(key, chat_id=result.normalized_chat_id, last_error=None)
+        await message.answer(f"✅ {h(result.message)}\nЗбережено точний ID: <code>{h(result.normalized_chat_id)}</code>")
+        return
+    await message.answer(("✅ " if result.ok else "⚠️ ") + h(result.message))
 
 
 @router.message(Command("sendnow"))
@@ -234,7 +301,7 @@ async def cmd_resume(message: Message) -> None:
 async def cmd_interval(message: Message) -> None:
     parts = message.text.split(maxsplit=2)
     if len(parts) != 3 or not parts[2].isdigit() or not 1 <= int(parts[2]) <= 10080:
-        await message.answer("Приклад: <code>/interval example_channel 30</code> (1–10080 хв)")
+        await message.answer("Приклад: <code>/interval HOTBOYS_YAOI_NS 30</code> (1–10080 хв)")
         return
     ok = db.update_channel(parts[1], interval_minutes=int(parts[2]), last_attempt=None)
     await message.answer(f"✅ Інтервал: {parts[2]} хв." if ok else "Канал не знайдено.")
@@ -245,7 +312,7 @@ async def cmd_interval(message: Message) -> None:
 async def cmd_language(message: Message) -> None:
     parts = message.text.split(maxsplit=2)
     if len(parts) != 3 or parts[2].lower() not in {"ua", "ru", "en"}:
-        await message.answer("Приклад: <code>/language example_channel en</code>")
+        await message.answer("Приклад: <code>/language HOTBOYS_YAOI_NS en</code>")
         return
     ok = db.update_channel(parts[1], language=parts[2].lower())
     await message.answer("✅ Мову змінено." if ok else "Канал не знайдено.")
@@ -253,17 +320,33 @@ async def cmd_language(message: Message) -> None:
 
 @router.message(Command("setchat"))
 @owner_only_message
-async def cmd_setchat(message: Message) -> None:
+async def cmd_setchat(message: Message, bot: Bot) -> None:
     parts = message.text.split(maxsplit=2)
     if len(parts) != 3:
-        await message.answer("Приклад: <code>/setchat example_channel -1001234567890</code>")
+        await message.answer(
+            "Формат: <code>/setchat key chat_id</code>\n\n"
+            "<code>key</code> — профіль/папка, створений через <code>/addchannel</code>.\n"
+            "<code>chat_id</code> — новий Telegram-канал для публікації.\n\n"
+            "Приклад для публічного каналу:\n"
+            "<code>/setchat HOTBOYS_YAOI_NS @HOT_BOYSES</code>\n\n"
+            "Приклад для приватного каналу:\n"
+            "<code>/setchat HOTBOYS_YAOI_NS -1001234567890</code>"
+        )
         return
     chat_id = parts[2].strip()
-    if not (chat_id.startswith("@") or (chat_id.startswith("-") and chat_id[1:].isdigit())):
-        await message.answer("chat_id має бути @username або числом на кшталт -1001234567890.")
+    if not is_valid_chat_ref(chat_id):
+        await message.answer("<code>chat_id</code> має бути <code>@username</code> або числом на кшталт <code>-1001234567890</code>.")
         return
-    ok = db.update_channel(parts[1], chat_id=chat_id, last_error=None, last_attempt=None)
-    await message.answer("✅ chat_id збережено." if ok else "Канал не знайдено.")
+    if not db.get_channel(parts[1]):
+        await message.answer("Канал не знайдено.")
+        return
+    result = await check_channel_for_posting(bot, chat_id)
+    if not result.ok:
+        await message.answer("⚠️ chat_id не збережено.\n" + h(result.message))
+        return
+    saved_chat_id = result.normalized_chat_id or chat_id
+    db.update_channel(parts[1], chat_id=saved_chat_id, last_error=None, last_attempt=None)
+    await message.answer(f"✅ chat_id збережено: <code>{h(saved_chat_id)}</code>\n{h(result.message)}")
 
 
 @router.message(Command("title"))
@@ -271,7 +354,11 @@ async def cmd_setchat(message: Message) -> None:
 async def cmd_title(message: Message) -> None:
     parts = message.text.split(maxsplit=2)
     if len(parts) != 3 or not parts[2].strip():
-        await message.answer("Приклад: <code>/title example_channel Назва каналу</code>")
+        await message.answer(
+            "Формат: <code>/title key Назва для меню</code>\n"
+            "Це змінює тільки назву в меню бота, а не папку і не Telegram-канал.\n\n"
+            "Приклад: <code>/title HOTBOYS_YAOI_NS HOTBOYS + YAOI NS</code>"
+        )
         return
     title = parts[2].strip()
     if len(title) > 100:
@@ -286,7 +373,10 @@ async def cmd_title(message: Message) -> None:
 async def cmd_pack(message: Message) -> None:
     parts = message.text.split(maxsplit=2)
     if len(parts) != 3 or parts[2] not in {"default", "style_1", "style_2"}:
-        await message.answer("Доступні набори: <code>default</code>, <code>style_1</code>, <code>style_2</code>.")
+        await message.answer(
+            "Формат: <code>/pack key default|style_1|style_2</code>\n"
+            "Приклад: <code>/pack HOTBOYS_YAOI_NS style_1</code>"
+        )
         return
     load_caption_pack(parts[2])
     ok = db.update_channel(parts[1], caption_pack=parts[2])
@@ -298,7 +388,10 @@ async def cmd_pack(message: Message) -> None:
 async def cmd_footer(message: Message) -> None:
     parts = message.text.split(maxsplit=2)
     if len(parts) < 3:
-        await message.answer("Приклад: <code>/footer example_channel Текст футера</code> або <code>/footer example_channel off</code>")
+        await message.answer(
+            "Приклад: <code>/footer HOTBOYS_YAOI_NS Текст футера</code>\n"
+            "Вимкнути футер: <code>/footer HOTBOYS_YAOI_NS off</code>"
+        )
         return
     footer = "" if parts[2].strip().lower() == "off" else parts[2].strip()
     if len(footer) > 350:
@@ -310,21 +403,33 @@ async def cmd_footer(message: Message) -> None:
 
 @router.message(Command("addchannel"))
 @owner_only_message
-async def cmd_addchannel(message: Message) -> None:
+async def cmd_addchannel(message: Message, bot: Bot) -> None:
     parts = message.text.split(maxsplit=3)
     if len(parts) != 4 or not CHANNEL_KEY_RE.fullmatch(parts[1]):
-        await message.answer("Приклад: <code>/addchannel new_channel @channel Назва каналу</code>\nКлюч: латиниця, цифри, _ або -.")
+        await message.answer(addchannel_help_text())
         return
     _, key, chat_id, title = parts
     if key in db.get_channels():
-        await message.answer("Канал із таким ключем уже існує. Вибери інший ключ або скористайся /setchat і /title.")
+        await message.answer(
+            "Профіль із таким <code>key</code> уже існує.\n\n"
+            "Якщо треба змінити Telegram-канал:\n"
+            f"<code>/setchat {h(key)} @HOT_NEW_CHANNEL</code>\n\n"
+            "Якщо треба змінити назву в меню:\n"
+            f"<code>/title {h(key)} Нова назва</code>\n\n"
+            "Якщо це інший канал, створи інший <code>key</code>."
+        )
         return
-    if not (chat_id.startswith("@") or (chat_id.startswith("-") and chat_id[1:].isdigit())):
-        await message.answer("chat_id має бути @username або числом на кшталт -1001234567890.")
+    if not is_valid_chat_ref(chat_id):
+        await message.answer("<code>chat_id</code> має бути <code>@username</code> або числом на кшталт <code>-1001234567890</code>.")
         return
+    result = await check_channel_for_posting(bot, chat_id)
+    if not result.ok:
+        await message.answer("⚠️ Канал не додано.\n" + h(result.message))
+        return
+    saved_chat_id = result.normalized_chat_id or chat_id
     channel = {
         "title": title,
-        "chat_id": chat_id,
+        "chat_id": saved_chat_id,
         "enabled": True,
         "paused": True,
         "language": "en",
@@ -341,7 +446,15 @@ async def cmd_addchannel(message: Message) -> None:
     db.upsert_channel(key, channel)
     await message.answer(
         f"✅ Канал додано: <code>{h(key)}</code>\n"
-        "⏸ Автопостинг на паузі. Додай медіа, перевір /sendnow і потім увімкни /resume."
+        f"Назва в меню: <b>{h(title)}</b>\n"
+        f"Папка контенту: <code>channels/{h(key)}</code>\n"
+        f"Telegram: {h(result.message)}\n"
+        "⏸ Автопостинг на паузі.\n\n"
+        "Далі:\n"
+        f"1. Додай медіа: <code>/upload {h(key)}</code>\n"
+        f"2. Перевір канал: <code>/checkchat {h(key)}</code>\n"
+        f"3. Тестова публікація: <code>/sendnow {h(key)}</code>\n"
+        f"4. Увімкни розклад: <code>/resume {h(key)}</code>"
     )
 
 
@@ -350,7 +463,7 @@ async def cmd_addchannel(message: Message) -> None:
 async def cmd_delchannel(message: Message) -> None:
     parts = message.text.split(maxsplit=1)
     if len(parts) != 2:
-        await message.answer("Приклад: <code>/delchannel new_channel</code>")
+        await message.answer("Приклад: <code>/delchannel HOTBOYS_YAOI_NS</code>")
         return
     ok = db.delete_channel(parts[1].strip())
     await message.answer("✅ Канал видалено з конфігу. Папки й медіа не видалялися." if ok else "Канал не знайдено.")
@@ -388,10 +501,20 @@ async def cmd_upload(message: Message) -> None:
     parts = message.text.split(maxsplit=1)
     key = command_target(message, parts[1] if len(parts) == 2 else None)
     if key not in db.get_channels():
-        await message.answer("Канал не знайдено.")
+        await message.answer(
+            "Профіль не знайдено.\n"
+            "У команді <code>/upload key</code> треба вказувати саме <code>key</code>, створений через <code>/addchannel</code>.\n"
+            "Приклад: <code>/upload HOTBOYS_YAOI_NS</code>\n\n"
+            "Список профілів: /channels"
+        )
         return
     upload_sessions[message.from_user.id] = key
-    await message.answer(f"📥 Завантаження для <code>{h(key)}</code> увімкнено. Надсилай фото, відео або медіафайли як документи. Завершити: /upload_stop")
+    await message.answer(
+        f"📥 Завантаження для профілю <code>{h(key)}</code> увімкнено.\n"
+        f"Файли будуть збережені в папку <code>channels/{h(key)}</code>.\n"
+        "Надсилай фото, відео або медіафайли як документи.\n"
+        "Завершити: /upload_stop"
+    )
 
 
 @router.message(Command("upload_stop"))

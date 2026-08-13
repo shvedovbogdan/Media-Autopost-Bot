@@ -13,7 +13,7 @@
 1. Розпакуйте комплект у `D:\Bots`, щоб вийшло `D:\Bots\Media_Autopost_Bot` і `D:\Bots\_manager`.
 2. Запустіть `start.bat`.
 3. Під час першого запуску вставте `BOT_TOKEN` від `@BotFather` та свій цифровий `OWNER_ID`.
-4. Дочекайтеся повідомлення `BOT READY / БОТ ЗАПУЩЕНИЙ` і напишіть боту `/start`.
+4. Дочекайтеся повідомлення `BOT READY / BOT STARTED` і напишіть боту `/start`.
 
 Скрипт сам знайде сумісний Python, перевірить або створить `venv`, встановить залежності та збереже введені дані в локальному `.env`. Під час наступних запусків повторно вводити їх не потрібно.
 
@@ -27,25 +27,50 @@
 
 Спочатку додайте керуючого бота адміністратором цільового каналу з правом публікації. Потім від імені власника виконайте:
 
-```text
-/addchannel example_channel -1001234567890 Назва каналу
-```
+### Що означають `key`, `chat_id` і назва
 
-Для публічного каналу замість цифрового `chat_id` можна вказати `@username`:
+Команда має три частини після `/addchannel`:
 
 ```text
-/addchannel public_example @public_channel Назва каналу
+/addchannel key chat_id Назва для меню
 ```
 
-`example_channel` і `public_example` — лише умовні ключі. Покупець сам обирає ключ та назву кожного профілю. Кількість каналів не задана наперед: нові додаються тією самою командою `/addchannel`.
+| Поле | Що це | Приклад |
+| --- | --- | --- |
+| `key` | внутрішня назва профілю і папки з контентом | `HOTBOYS_YAOI_NS` |
+| `chat_id` | Telegram-канал, куди бот публікує | `@HOT_BOYSES` або `-1001234567890` |
+| `Назва для меню` | текст, який буде видно в меню бота | `HOTBOYS + YAOI NS` |
+
+`key` — це не `@username` каналу. Він створюється командою `/addchannel` і потім використовується в командах `/upload`, `/sendnow`, `/pause`, `/resume`, `/checkchat`. Також за цим ключем створюється папка:
+
+```text
+channels/HOTBOYS_YAOI_NS
+```
+
+Приклад для публічного каналу:
+
+```text
+/addchannel HOTBOYS_YAOI_NS @HOT_BOYSES HOTBOYS + YAOI NS
+```
+
+Приклад для приватного каналу:
+
+```text
+/addchannel HOTBOYS_YAOI_NS -1001234567890 HOTBOYS + YAOI NS
+```
+
+Правила для `key`: тільки латиниця, цифри, `_` або `-`, без пробілів. Кількість каналів не задана наперед: нові додаються тією самою командою `/addchannel`.
 
 Новий канал створюється на паузі. Додайте медіа, перевірте ручну публікацію і тільки потім увімкніть розклад:
 
 ```text
-/upload example_channel
-/sendnow example_channel
-/resume example_channel
+/checkchat HOTBOYS_YAOI_NS
+/upload HOTBOYS_YAOI_NS
+/sendnow HOTBOYS_YAOI_NS
+/resume HOTBOYS_YAOI_NS
 ```
+
+Якщо Telegram відповідає `chat not found`, бот запущений нормально, але не бачить цільовий канал. Перевірте, що бот доданий у канал адміністратором; для публічного каналу використовуйте `@username`, для приватного — числовий ID виду `-1001234567890`.
 
 ## Медіапапки
 
@@ -67,7 +92,7 @@ channels/<key>/archive/videos
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\import_media.ps1" `
   -Source "D:\OldBot\channels\source_profile" `
-  -TargetKey "example_channel"
+  -TargetKey "HOTBOYS_YAOI_NS"
 ```
 
 Для кожного наступного профілю запустіть команду ще раз із його ключем.
@@ -76,9 +101,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\import_media.ps1" `
 
 ```text
 /channels                     — список усіх доданих каналів
-/addchannel key chat_id Назва — додати новий канал
+/addchannel key chat_id Назва для меню — додати новий профіль каналу
 /delchannel key               — прибрати канал із конфігурації
 /status [key|all]             — стан і кількість медіа
+/checkchat [key]              — перевірити доступ бота до каналу
 /sendnow [key|all]            — опублікувати зараз
 /pause [key|all]              — поставити на паузу
 /resume [key|all]             — продовжити автопостинг

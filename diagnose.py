@@ -6,7 +6,6 @@ import tempfile
 from pathlib import Path
 
 from aiogram import Bot
-from aiogram.enums import ChatMemberStatus
 
 from config import (
     BOT_TOKEN,
@@ -21,6 +20,7 @@ from config import (
 )
 from database import JsonDatabase
 from services.storage import ensure_channel_dirs
+from services.telegram_checks import check_channel_for_posting
 
 
 def ok(message: str) -> None:
@@ -95,20 +95,11 @@ async def check_telegram(database: JsonDatabase) -> int:
                 warning(f"У каналу '{key}' не вказано chat_id")
                 failures += 1
                 continue
-            try:
-                chat = await bot.get_chat(chat_id)
-                member = await bot.get_chat_member(chat_id, me.id)
-                if member.status not in {ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR}:
-                    error(f"Бот не є адміністратором каналу '{key}' ({chat.title or chat_id})")
-                    failures += 1
-                    continue
-                if getattr(member, "can_post_messages", True) is False:
-                    error(f"Бот не має права публікувати в каналі '{key}'")
-                    failures += 1
-                    continue
-                ok(f"Канал '{key}' доступний, право публікації є")
-            except Exception as exc:
-                error(f"Telegram-перевірка каналу '{key}' невдала: {type(exc).__name__}: {exc}")
+            result = await check_channel_for_posting(bot, chat_id)
+            if result.ok:
+                ok(f"Канал '{key}' доступний: {result.message}")
+            else:
+                error(f"Канал '{key}' недоступний: {result.message}")
                 failures += 1
     finally:
         await bot.session.close()

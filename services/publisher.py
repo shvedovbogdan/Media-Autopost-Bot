@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from aiogram import Bot
+from aiogram.exceptions import TelegramAPIError
 from aiogram.types import FSInputFile
 from config import (
     NOTIFY_OWNER,
@@ -21,6 +22,7 @@ from database import JsonDatabase
 
 from services.captions import generate_caption
 from services.storage import ensure_channel_dirs, list_files, project_path, unique_path
+from services.telegram_checks import explain_telegram_error
 
 logger = logging.getLogger("media_autopost.publisher")
 db = JsonDatabase()
@@ -120,8 +122,13 @@ async def publish_channel(bot: Bot, channel_key: str, channel: dict) -> tuple[bo
                     supports_streaming=True,
                 )
                 archive_folder = project_path(channel["paths"]["archive"]) / "videos"
+        except TelegramAPIError as error:
+            message = explain_telegram_error(error, chat_id)
+            update_attempt(channel_key, error=message)
+            logger.exception("Publish error for %s", channel_key)
+            return False, message
         except Exception as error:
-            message = f"Telegram: {type(error).__name__}: {error}"
+            message = f"Помилка публікації: {type(error).__name__}: {error}"
             update_attempt(channel_key, error=message)
             logger.exception("Publish error for %s", channel_key)
             return False, message
