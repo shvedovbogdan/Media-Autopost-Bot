@@ -1,14 +1,15 @@
 param(
-    [string]$Version = "1.6"
+    [string]$Version = "2.4.1"
 )
 
 $ErrorActionPreference = "Stop"
 
 $SourceRoot = $PSScriptRoot
 $OutputRoot = Split-Path -Parent $SourceRoot
+$ManagerSource = Join-Path $OutputRoot "_manager"
 $ArchivePath = Join-Path $OutputRoot "Media_Autopost_Bot_Universal_v$Version.zip"
 $StageRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("MediaAutopostRelease_" + [guid]::NewGuid().ToString("N"))
-$PackageName = "Media_Autopost_Bot_v$Version"
+$PackageName = "Media_Autopost_Bot"
 $PackageRoot = Join-Path $StageRoot $PackageName
 
 $Files = @(
@@ -46,7 +47,8 @@ $RuntimeDirectories = @(
     "data",
     "stats",
     "caption_history",
-    "logs"
+    "logs",
+    "backups"
 )
 
 try {
@@ -85,7 +87,16 @@ try {
     $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText((Join-Path $PackageRoot "channels.json"), "{}`r`n", $Utf8NoBom)
 
-    Compress-Archive -LiteralPath $PackageRoot -DestinationPath $ArchivePath -CompressionLevel Optimal -Force
+    if (Test-Path -LiteralPath $ManagerSource -PathType Container) {
+        Copy-Item -LiteralPath $ManagerSource -Destination (Join-Path $StageRoot "_manager") -Recurse -Force
+    }
+
+    $ArchiveItems = @($PackageRoot)
+    if (Test-Path -LiteralPath (Join-Path $StageRoot "_manager") -PathType Container) {
+        $ArchiveItems += (Join-Path $StageRoot "_manager")
+    }
+
+    Compress-Archive -LiteralPath $ArchiveItems -DestinationPath $ArchivePath -CompressionLevel Optimal -Force
     Write-Host "Created clean sale package: $ArchivePath"
 }
 finally {

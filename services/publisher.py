@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import html
 import logging
 import random
 import shutil
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from aiogram import Bot
@@ -15,11 +16,22 @@ from config import (
     NOTIFY_OWNER,
     OWNER_ID,
     PHOTO_EXTENSIONS,
+    RENTAL_REMINDERS_ENABLED,
     SCHEDULER_POLL_SECONDS,
     VIDEO_EXTENSIONS,
 )
 from database import JsonDatabase
 
+from services.backups import maybe_create_backup
+from services.billing import (
+    channel_access_error,
+    channel_rental_user_id,
+    format_paid_until,
+    is_rental_banned,
+    parse_paid_until,
+    plan_title,
+    rental_plan_id,
+)
 from services.captions import generate_caption
 from services.storage import ensure_channel_dirs, list_files, project_path, unique_path
 from services.telegram_checks import explain_telegram_error
@@ -64,6 +76,19 @@ def choose_media(channel: dict) -> tuple[str, Path] | None:
     return media_type, random.choice(photos if media_type == "photo" else videos)
 
 
+def file_fingerprint(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def is_duplicate_media(channel_key: str, file_path: Path) -> tuple[bool, str]:
+    fingerprint = file_fingerprint(file_path)
+    return fingerprint in db.get_published_fingerprints(channel_key), fingerprint
+
+
 def update_attempt(channel_key: str, *, error: str | None = None, success_type: str | None = None) -> bool:
     """Save an attempt and return True for a changed error. / Зберігає спробу та визначає нову помилку."""
     channels = db.get_channels()
@@ -84,6 +109,11 @@ def update_attempt(channel_key: str, *, error: str | None = None, success_type: 
 async def publish_channel(bot: Bot, channel_key: str, channel: dict) -> tuple[bool, str]:
     """Publish one queued file and archive it. / Публікує один файл і переносить його в архів."""
     async with _send_lock:
+        rental = db.get_user_rental(channel_rental_user_id(channel))
+        payment_error = channel_access_error(channel, rental, channel_key)
+        if payment_error:
+            update_attempt(channel_key, error=payment_error)
+            return False, payment_error
         chat_id = channel.get("chat_id")
         if not chat_id:
             return False, "Не вказано chat_id."
@@ -101,6 +131,23 @@ async def publish_channel(bot: Bot, channel_key: str, channel: dict) -> tuple[bo
             return False, message
 
         media_type, file_path = selected
+        try:
+            duplicate, fingerprint = is_duplicate_media(channel_key, file_path)
+        except OSError as error:
+            message = f"Не вдалося перевірити файл на дубль: {error}"
+            update_attempt(channel_key, error=message)
+            return False, message
+        if duplicate:
+            duplicate_folder = project_path(channel["paths"]["archive"]) / "duplicates"
+            duplicate_path = unique_path(duplicate_folder, file_path.name)
+            try:
+                shutil.move(str(file_path), str(duplicate_path))
+            except OSError:
+                logger.exception("Duplicate archive error for %s", channel_key)
+            update_attempt(channel_key, error=None)
+            logger.info("Skipped duplicate media %s for %s", file_path.name, channel_key)
+            return True, f"Дублікат пропущено й перенесено в архів: {file_path.name}"
+
         caption = generate_caption(
             channel_key=channel_key,
             media_type=media_type,
@@ -140,11 +187,11 @@ async def publish_channel(bot: Bot, channel_key: str, channel: dict) -> tuple[bo
             # The Telegram post succeeded, so record it even if local archiving failed.
             logger.exception("Archive error for %s", channel_key)
             update_attempt(channel_key, error=f"Опубліковано, але не перенесено в архів: {error}", success_type=media_type)
-            db.add_stat(channel_key, media_type, file_path.name, caption)
+            db.add_stat(channel_key, media_type, file_path.name, caption, fingerprint=fingerprint)
             return True, f"Опубліковано {media_type}, але сталася помилка архіву: {file_path.name}"
 
         update_attempt(channel_key, success_type=media_type)
-        db.add_stat(channel_key, media_type, file_path.name, caption)
+        db.add_stat(channel_key, media_type, file_path.name, caption, fingerprint=fingerprint)
         logger.info("Published %s to %s", file_path.name, channel_key)
         return True, f"Опубліковано {media_type}: {file_path.name}"
 
@@ -161,12 +208,79 @@ async def notify_owner(bot: Bot, channel_key: str, message: str) -> None:
         logger.exception("Could not notify owner about %s", channel_key)
 
 
+async def maybe_send_rental_reminders(bot: Bot) -> None:
+    if not RENTAL_REMINDERS_ENABLED:
+        return
+    now = datetime.now(timezone.utc)
+    for user_id, rental in db.get_bot_rentals().items():
+        if is_rental_banned(rental):
+            continue
+        paid_until = parse_paid_until(rental.get("paid_until"))
+        if not paid_until:
+            continue
+        remaining = paid_until - now
+        marker = None
+        label = ""
+        if remaining <= timedelta(seconds=0):
+            marker = "expired"
+            label = "оренда бота закінчилась"
+        elif remaining <= timedelta(days=1):
+            marker = "1d"
+            label = "до закінчення оренди залишився 1 день або менше"
+        elif remaining <= timedelta(days=3):
+            marker = "3d"
+            label = "до закінчення оренди залишилось 3 дні або менше"
+        if not marker:
+            continue
+        sent = set(rental.get("reminders_sent", []))
+        if marker in sent:
+            continue
+        sent.add(marker)
+        db.update_user_rental(user_id, reminders_sent=sorted(sent))
+        plan_id = rental_plan_id(rental)
+        user_text = (
+            f"⏰ Нагадування: {label}.\n"
+            f"Тариф: <b>{html.escape(plan_title(plan_id))}</b>\n"
+            f"Оплачено до: <b>{html.escape(format_paid_until(paid_until.isoformat()))}</b>\n\n"
+            "Продовжити доступ: <code>/rentbot</code>"
+        )
+        try:
+            await bot.send_message(int(user_id), user_text)
+        except Exception:
+            logger.exception("Could not send rental reminder to %s", user_id)
+        if OWNER_ID:
+            try:
+                await bot.send_message(
+                    OWNER_ID,
+                    f"⏰ Оренда клієнта <code>{html.escape(str(user_id))}</code>: {html.escape(label)}.\n"
+                    f"Тариф: <b>{html.escape(plan_title(plan_id))}</b>\n"
+                    f"До: <b>{html.escape(format_paid_until(paid_until.isoformat()))}</b>",
+                )
+            except Exception:
+                logger.exception("Could not notify owner about rental reminder for %s", user_id)
+
+
 async def scheduler_loop(bot: Bot) -> None:
     """Run all channel schedules in one process. / Обслуговує розклад усіх каналів в одному процесі."""
     logger.info("Scheduler started")
     while True:
+        try:
+            maybe_create_backup()
+        except Exception:
+            logger.exception("Automatic backup failed")
+        try:
+            await maybe_send_rental_reminders(bot)
+        except Exception:
+            logger.exception("Rental reminder check failed")
         channels = db.get_channels()
         for key, channel in channels.items():
+            rental = db.get_user_rental(channel_rental_user_id(channel))
+            payment_error = channel_access_error(channel, rental, key)
+            if payment_error:
+                if channel.get("last_error") != payment_error:
+                    update_attempt(key, error=payment_error)
+                    await notify_owner(bot, key, payment_error)
+                continue
             if not due(channel):
                 continue
             previous_error = channel.get("last_error")

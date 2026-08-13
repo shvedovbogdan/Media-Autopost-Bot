@@ -50,11 +50,17 @@ async def set_commands(bot: Bot) -> None:
     commands = [
         BotCommand(command="start", description="Головне меню"),
         BotCommand(command="channels", description="Список каналів"),
+        BotCommand(command="payments", description="Оренда бота і статус оплат"),
+        BotCommand(command="rentbot", description="Оплатити або продовжити оренду"),
+        BotCommand(command="addchannel", description="Додати канал"),
         BotCommand(command="status", description="Статус активного каналу"),
         BotCommand(command="checkchat", description="Перевірити доступ до каналу"),
         BotCommand(command="sendnow", description="Опублікувати зараз"),
         BotCommand(command="upload", description="Додати медіа в чергу"),
         BotCommand(command="upload_stop", description="Завершити завантаження"),
+        BotCommand(command="clients", description="Owner: клієнти"),
+        BotCommand(command="income", description="Owner: дохід Stars"),
+        BotCommand(command="backup", description="Owner: створити бекап"),
         BotCommand(command="help", description="Усі команди"),
     ]
     await bot.set_my_commands(commands)

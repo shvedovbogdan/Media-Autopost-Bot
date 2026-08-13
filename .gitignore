@@ -9,3 +9,7 @@ channels/*
 stats/*.json
 caption_history/*.json
 data/admins.json
+data/bot_rentals.json
+data/channel_payments.json
+data/backup_state.json
+backups/*.zip

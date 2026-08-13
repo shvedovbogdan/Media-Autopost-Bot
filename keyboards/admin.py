@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from config import RENTAL_BASIC_CHANNELS, RENTAL_BASIC_STARS, RENTAL_PRO_CHANNELS, RENTAL_PRO_STARS, RENTAL_VIP_CHANNELS, RENTAL_VIP_STARS
 
 
 def channel_controls(key: str, paused: bool = False) -> InlineKeyboardMarkup:
@@ -42,3 +43,27 @@ def channels_keyboard(channels: dict) -> InlineKeyboardMarkup:
     rows.append([InlineKeyboardButton(text="🔄 Оновити", callback_data="channels")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
+
+def main_menu_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="📢 Мої канали", callback_data="channels"),
+                InlineKeyboardButton(text="⭐ Оренда", callback_data="rental"),
+            ],
+            [
+                InlineKeyboardButton(text="📊 Статус", callback_data="status_active"),
+                InlineKeyboardButton(text="➕ Додати канал", callback_data="add_help"),
+            ],
+        ]
+    )
+
+
+def rental_plans_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"Basic — {RENTAL_BASIC_STARS}⭐ / {RENTAL_BASIC_CHANNELS} канал", callback_data="rentplan:basic")],
+            [InlineKeyboardButton(text=f"Pro — {RENTAL_PRO_STARS}⭐ / {RENTAL_PRO_CHANNELS} каналів", callback_data="rentplan:pro")],
+            [InlineKeyboardButton(text=f"VIP — {RENTAL_VIP_STARS}⭐ / {RENTAL_VIP_CHANNELS} каналів", callback_data="rentplan:vip")],
+        ]
+    )

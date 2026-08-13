@@ -15,8 +15,12 @@ STATS_DIR = BASE_DIR / "stats"
 CAPTION_HISTORY_DIR = BASE_DIR / "caption_history"
 CHANNELS_DIR = BASE_DIR / "channels"
 CAPTION_PACKS_DIR = BASE_DIR / "caption_packs"
+BACKUPS_DIR = BASE_DIR / "backups"
 CHANNELS_PATH = BASE_DIR / "channels.json"
 ADMINS_PATH = DATA_DIR / "admins.json"
+PAYMENTS_PATH = DATA_DIR / "channel_payments.json"
+BOT_RENTALS_PATH = DATA_DIR / "bot_rentals.json"
+BACKUP_STATE_PATH = DATA_DIR / "backup_state.json"
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -42,6 +46,20 @@ TIMEZONE = os.getenv("TIMEZONE", "Europe/Kyiv").strip()
 AUTO_START = env_bool("AUTO_START", True)
 NOTIFY_OWNER = env_bool("NOTIFY_OWNER", True)
 SCHEDULER_POLL_SECONDS = max(5, env_int("SCHEDULER_POLL_SECONDS", 20))
+BOT_RENTAL_STARS = max(1, env_int("BOT_RENTAL_STARS", env_int("CHANNEL_MONTHLY_STARS", 100)))
+BOT_RENTAL_DAYS = max(1, env_int("BOT_RENTAL_DAYS", env_int("CHANNEL_SUBSCRIPTION_DAYS", 30)))
+CHANNEL_MONTHLY_STARS = BOT_RENTAL_STARS
+CHANNEL_SUBSCRIPTION_DAYS = BOT_RENTAL_DAYS
+RENTAL_BASIC_STARS = max(1, env_int("RENTAL_BASIC_STARS", BOT_RENTAL_STARS))
+RENTAL_BASIC_CHANNELS = max(1, env_int("RENTAL_BASIC_CHANNELS", 1))
+RENTAL_PRO_STARS = max(1, env_int("RENTAL_PRO_STARS", 250))
+RENTAL_PRO_CHANNELS = max(1, env_int("RENTAL_PRO_CHANNELS", 5))
+RENTAL_VIP_STARS = max(1, env_int("RENTAL_VIP_STARS", 500))
+RENTAL_VIP_CHANNELS = max(1, env_int("RENTAL_VIP_CHANNELS", 20))
+RENTAL_REMINDERS_ENABLED = env_bool("RENTAL_REMINDERS_ENABLED", True)
+BACKUP_ENABLED = env_bool("BACKUP_ENABLED", True)
+BACKUP_EVERY_HOURS = max(1, env_int("BACKUP_EVERY_HOURS", 24))
+BACKUP_KEEP_DAYS = max(1, env_int("BACKUP_KEEP_DAYS", 14))
 
 PHOTO_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
 VIDEO_EXTENSIONS = (".mp4", ".mov", ".avi", ".mkv", ".webm")
